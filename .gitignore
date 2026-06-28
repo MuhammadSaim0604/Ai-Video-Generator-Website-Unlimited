@@ -14,4 +14,3 @@ dist/
 *.swp
 *.swo
 .replit.nix
-package-lock.json
