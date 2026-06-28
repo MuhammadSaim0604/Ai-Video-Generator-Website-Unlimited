@@ -113,11 +113,28 @@ async function withTokenRefresh(account, apiFn) {
  * Sync account credits and high_quality_times from Pixverse.
  */
 async function syncAccountCredits(account) {
+  const fetchAll = (token) => Promise.all([
+    pixverse.getCredits(token),
+    pixverse.getWorkspaceCredits(token),
+  ]);
+
   try {
-    const [credits, workspace] = await Promise.all([
-      pixverse.getCredits(account.token),
-      pixverse.getWorkspaceCredits(account.token),
-    ]);
+    let token = account.token;
+    let credits, workspace;
+
+    try {
+      [credits, workspace] = await Promise.all([
+        pixverse.getCredits(token),
+        pixverse.getWorkspaceCredits(token),
+      ]);
+    } catch (err) {
+        token = await refreshToken(account);
+        [credits, workspace] = await Promise.all([
+          pixverse.getCredits(token),
+          pixverse.getWorkspaceCredits(token),
+        ]);
+      }
+
     const remainingCredits = workspace;
     const highQualityTimes = credits.high_quality_times;
 

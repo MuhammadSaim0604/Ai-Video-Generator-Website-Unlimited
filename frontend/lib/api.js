@@ -120,3 +120,47 @@ export async function adminGetQueueSettings() {
 export async function adminUpdateQueueSettings(settings) {
   return apiFetch('/admin-api/queue/settings', { method: 'PUT', body: JSON.stringify(settings) });
 }
+
+export async function adminSyncAll() {
+  return apiFetch('/admin-api/accounts/sync-all', { method: 'POST' });
+}
+
+export async function adminSyncUsed() {
+  return apiFetch('/admin-api/accounts/sync-used', { method: 'POST' });
+}
+
+export async function adminExportAccounts() {
+  const res = await fetch('/admin-api/accounts/export', { credentials: 'include' });
+  if (!res.ok) throw new Error('Export failed');
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'pixverse-accounts.json';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+export async function adminExportDb() {
+  const res = await fetch('/admin-api/db/export', { credentials: 'include' });
+  if (!res.ok) throw new Error('DB export failed');
+  const blob = await res.blob();
+  const date = new Date().toISOString().slice(0, 10);
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `veo3-backup-${date}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+export async function adminImportDb(file) {
+  const formData = new FormData();
+  formData.append('backup', file);
+  const res = await fetch('/admin-api/db/import', {
+    method: 'POST',
+    credentials: 'include',
+    body: formData,
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'Import failed');
+  return data;
+}

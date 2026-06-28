@@ -48,6 +48,7 @@ async function getCredits(token) {
     const res = await axios.get(`${PIXVERSE_BASE_URL}/user/credits`, {
       headers: buildHeaders(token),
     });
+    if (res.data.ErrCode === 10005) throw new Error('Token expired or invalid');
     if (res.data.ErrCode !== 0) throw new Error(`Credits fetch failed: ${res.data.ErrMsg}`);
     return res.data.Resp;
   } catch (err) {
@@ -280,6 +281,7 @@ async function pollAccountMessage(token) {
 function isAuthError(err) {
   if (err.response) {
     const httpStatus = err.response.status;
+    // console.error(`[Pixverse:isAuthError] HTTP ${httpStatus} — Response body:`, JSON.stringify(err.response.data));
     const errCode = err.response.data?.ErrCode;
     return (
       httpStatus === 401 ||
