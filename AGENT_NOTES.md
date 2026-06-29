@@ -12,6 +12,7 @@ A free AI video/image generation platform that uses a pool of Pixverse accounts 
 - **Real-time:** Socket.io (shares port with Express via `http.Server`)
 - **Sessions:** PG-backed via `connect-pg-simple`
 
+
 ### Frontend (Next.js 15, port 5000)
 - **Location:** `frontend/`
 - **Proxying:** `next.config.js` rewrites `/api/*` → backend, `/admin-api/*` → `/admin/*` on backend, `/socket.io/*` → backend
