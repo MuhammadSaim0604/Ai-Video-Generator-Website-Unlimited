@@ -3,8 +3,6 @@ const express = require('express');
 const http = require('http');
 const cors = require('cors');
 const cookieParser = require('cookie-parser');
-const session = require('express-session');
-const ConnectPgSimple = require('connect-pg-simple');
 const pool = require('./db/pool');
 const runMigrations = require('./db/migrate');
 const { initSocket } = require('./socket/index');
@@ -13,7 +11,6 @@ const queueManager = require('./queues/QueueManager');
 const app = express();
 const server = http.createServer(app);
 
-// ─── Middleware ────────────────────────────────────────────────────────────────
 app.use(cors({
   origin: true,
   credentials: true,
@@ -44,6 +41,7 @@ app.use(session({
 app.use('/api/generate', require('./routes/generate'));
 app.use('/api/upload', require('./routes/upload'));
 app.use('/api/gallery', require('./routes/gallery'));
+app.use('/api/auth', require('./routes/auth'));
 app.use('/admin', require('./routes/admin'));
 
 // Health check
@@ -97,6 +95,7 @@ async function start() {
     server.listen(PORT, '0.0.0.0', () => {
       console.log(`[Server] Backend running on port ${PORT}`);
       console.log(`[Server] Admin panel: http://localhost:${PORT}/admin`);
+      console.log('[Auth] Google OAuth ready');
     });
   } catch (err) {
     console.error('[Server] Startup failed:', err.message);

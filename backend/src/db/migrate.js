@@ -9,20 +9,20 @@ async function runMigrations() {
     await pool.query(sql);
     console.log('[DB] Schema applied successfully');
 
-    // Add thumbnail_url column if it was added after the initial schema deployment
-    await pool.query(
-      `ALTER TABLE generation_jobs ADD COLUMN IF NOT EXISTS thumbnail_url TEXT`
-    );
+    await pool.query(`ALTER TABLE generation_jobs ADD COLUMN IF NOT EXISTS thumbnail_url TEXT`);
+    await pool.query(`ALTER TABLE generation_jobs ADD COLUMN IF NOT EXISTS user_id TEXT`);
+    await pool.query(`ALTER TABLE uploaded_images ADD COLUMN IF NOT EXISTS user_id TEXT`);
 
-    // Reset any stuck processing jobs on startup
-    await pool.query(
-      "UPDATE generation_jobs SET status = 'queued' WHERE status = 'processing'"
-    );
+    try { await pool.query(`ALTER TABLE generation_jobs ALTER COLUMN session_id DROP NOT NULL`); } catch (_) {}
+    try { await pool.query(`ALTER TABLE uploaded_images ALTER COLUMN session_id DROP NOT NULL`); } catch (_) {}
 
-    // Reset active_generations counters (in case of crash)
-    await pool.query('UPDATE pixverse_accounts SET active_generations = 0');
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_jobs_user ON generation_jobs(user_id)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_uploaded_user ON uploaded_images(user_id)`);
 
-    console.log('[DB] Reset stuck jobs and active generation counters');
+    await pool.query(`UPDATE generation_jobs SET status = 'queued' WHERE status = 'processing'`);
+    await pool.query(`UPDATE pixverse_accounts SET active_generations = 0`);
+
+    console.log('[DB] Migrations complete, stuck jobs reset');
   } catch (err) {
     console.error('[DB] Migration error:', err.message);
     throw err;

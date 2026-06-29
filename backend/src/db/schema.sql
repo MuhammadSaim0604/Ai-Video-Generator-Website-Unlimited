@@ -1,3 +1,13 @@
+CREATE TABLE IF NOT EXISTS users (
+  id SERIAL PRIMARY KEY,
+  google_id TEXT UNIQUE NOT NULL,
+  email TEXT UNIQUE NOT NULL,
+  name TEXT,
+  picture TEXT,
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
 CREATE TABLE IF NOT EXISTS pixverse_accounts (
   id SERIAL PRIMARY KEY,
   email TEXT UNIQUE NOT NULL,
@@ -33,7 +43,8 @@ CREATE TABLE IF NOT EXISTS queue_settings (
 CREATE TABLE IF NOT EXISTS generation_jobs (
   id SERIAL PRIMARY KEY,
   job_id TEXT UNIQUE NOT NULL,
-  session_id TEXT NOT NULL,
+  user_id TEXT,
+  session_id TEXT,
   queue_type TEXT NOT NULL CHECK (queue_type IN ('image', 'sd_video', 'hd_video')),
   mode TEXT NOT NULL CHECK (mode IN ('t2i', 'i2i', 't2v', 'i2v')),
   display_model TEXT,
@@ -60,7 +71,8 @@ CREATE TABLE IF NOT EXISTS generation_jobs (
 
 CREATE TABLE IF NOT EXISTS uploaded_images (
   id SERIAL PRIMARY KEY,
-  session_id TEXT NOT NULL,
+  user_id TEXT,
+  session_id TEXT,
   pixverse_image_id BIGINT,
   url TEXT NOT NULL,
   path TEXT NOT NULL,
@@ -89,3 +101,4 @@ CREATE INDEX IF NOT EXISTS idx_jobs_session ON generation_jobs(session_id);
 CREATE INDEX IF NOT EXISTS idx_jobs_status ON generation_jobs(status);
 CREATE INDEX IF NOT EXISTS idx_jobs_queue_type ON generation_jobs(queue_type);
 CREATE INDEX IF NOT EXISTS idx_uploaded_session ON uploaded_images(session_id);
+CREATE INDEX IF NOT EXISTS idx_users_google ON users(google_id);

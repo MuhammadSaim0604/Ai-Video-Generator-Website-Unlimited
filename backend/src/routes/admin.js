@@ -2,7 +2,7 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const multer = require('multer');
 const pool = require('../db/pool');
-const { requireAdmin } = require('../middleware/adminAuth');
+const { requireAdmin, signAdminToken } = require('../middleware/adminAuth');
 const accountManager = require('../services/accountManager');
 const queueManager = require('../queues/QueueManager');
 const { emitAdminUpdate } = require('../socket/index');
@@ -27,8 +27,8 @@ router.post('/login', async (req, res) => {
           'INSERT INTO admin_users (username, password_hash) VALUES ($1, $2)',
           [username, hash]
         );
-        req.session.adminId = username;
-        return res.json({ success: true, username });
+        const token = signAdminToken(username);
+        return res.json({ success: true, username, token });
       }
       return res.status(401).json({ error: 'Invalid credentials' });
     }
@@ -37,8 +37,8 @@ router.post('/login', async (req, res) => {
     const valid = await bcrypt.compare(password, admin.password_hash);
     if (!valid) return res.status(401).json({ error: 'Invalid credentials' });
 
-    req.session.adminId = admin.username;
-    res.json({ success: true, username: admin.username });
+    const token = signAdminToken(admin.username);
+    res.json({ success: true, username: admin.username, token });
   } catch (err) {
     console.error('[Admin Login]', err.message);
     res.status(500).json({ error: 'Login failed' });
@@ -47,13 +47,12 @@ router.post('/login', async (req, res) => {
 
 // POST /admin/logout
 router.post('/logout', (req, res) => {
-  req.session.destroy();
   res.json({ success: true });
 });
 
 // GET /admin/me
 router.get('/me', requireAdmin, (req, res) => {
-  res.json({ username: req.session.adminId });
+  res.json({ username: req.adminId });
 });
 
 // GET /admin/dashboard — stats
@@ -110,6 +109,7 @@ router.get('/jobs', requireAdmin, async (req, res) => {
       `SELECT gj.job_id, gj.pixverse_job_id, gj.queue_type, gj.mode, gj.display_model,
               gj.prompt, gj.quality, gj.aspect_ratio, gj.duration, gj.status,
               gj.result_url, gj.webp_url, gj.error_msg, gj.created_at, gj.completed_at,
+              gj.user_id,
               pa.email as account_email
        FROM generation_jobs gj
        LEFT JOIN pixverse_accounts pa ON pa.id = gj.pixverse_account_id
@@ -227,7 +227,7 @@ router.post('/accounts/:id/sync-credits', requireAdmin, async (req, res) => {
   }
 });
 
-// POST /admin/accounts/sync-all — sync credits for every active account
+// POST /admin/accounts/sync-all
 router.post('/accounts/sync-all', requireAdmin, async (req, res) => {
   try {
     const { rows } = await pool.query('SELECT * FROM pixverse_accounts WHERE is_active = TRUE');
@@ -264,22 +264,12 @@ router.post('/accounts/sync-used', requireAdmin, async (req, res) => {
 // primary-key ids, so the file can be fully restored on any instance.
 router.get("/db/export", requireAdmin, async (req, res) => {
   try {
-    const [
-      adminUsers,
-      pixverseAccounts,
-      queueSettings,
-      siteAnalytics,
-      generationJobs,
-      uploadedImages,
-    ] = await Promise.all([
-      pool.query(`
-        SELECT id, username, password_hash, created_at
-        FROM admin_users ORDER BY id
-      `),
-      pool.query(`
-        SELECT id, email, username, password, token, account_id, invite_code,
-               total_credits, remaining_credits, high_quality_times,
-               active_generations, is_active, last_used_at, created_at
+    const [adminUsers, pixverseAccounts, queueSettings, siteAnalytics, generationJobs, uploadedImages] =
+      await Promise.all([
+        pool.query(`SELECT id, username, password_hash, created_at FROM admin_users ORDER BY id`),
+        pool.query(`SELECT id, email, username, password, token, account_id, invite_code,
+                           total_credits, remaining_credits, high_quality_times,
+                           active_generations, is_active, last_used_at, created_at
         FROM pixverse_accounts ORDER BY id
       `),
       pool.query(`
@@ -295,22 +285,22 @@ router.get("/db/export", requireAdmin, async (req, res) => {
       `),
       pool.query(`
         SELECT id, job_id, session_id, queue_type, mode, internal_model,
-               display_model, prompt, quality, aspect_ratio, duration, seed,
-               audio, customer_img_path, customer_img_paths,
-               pixverse_job_id, pixverse_account_id, status,
-               result_url, result_path, webp_url, thumbnail_url,
-               error_msg, queue_position, created_at, completed_at
+                           display_model, prompt, quality, aspect_ratio, duration, seed,
+                           audio, customer_img_path, customer_img_paths,
+                           pixverse_job_id, pixverse_account_id, status,
+                           result_url, result_path, webp_url, thumbnail_url,
+                           error_msg, queue_position, created_at, completed_at
         FROM generation_jobs ORDER BY id
       `),
       pool.query(`
-        SELECT id, session_id, pixverse_image_id, url, path, file_name,
+        SELECT id, user_id, session_id, pixverse_image_id, url, path, file_name,
                width, height, uploaded_via_account, created_at
         FROM uploaded_images ORDER BY id
       `),
-    ]);
+      ]);
 
     const backup = {
-      version: 2,
+      version: 3,
       exported_at: new Date().toISOString(),
       admin_users: adminUsers.rows,
       pixverse_accounts: pixverseAccounts.rows,
@@ -321,12 +311,12 @@ router.get("/db/export", requireAdmin, async (req, res) => {
     };
 
     const filename = `veo3-backup-${new Date().toISOString().slice(0, 10)}.json`;
-    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
-    res.setHeader("Content-Type", "application/json");
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Content-Type', 'application/json');
     res.json(backup);
   } catch (err) {
-    console.error("[DB Export]", err.message);
-    res.status(500).json({ error: "Export failed: " + err.message });
+    console.error('[DB Export]', err.message);
+    res.status(500).json({ error: 'Export failed: ' + err.message });
   }
 });
 
@@ -351,26 +341,20 @@ router.get("/db/export", requireAdmin, async (req, res) => {
 // Import order: admin_users → pixverse_accounts → queue_settings →
 //               site_analytics → generation_jobs → uploaded_images
 // Everything runs inside a single transaction; any error triggers full ROLLBACK.
-router.post(
-  "/db/import",
-  requireAdmin,
-  jsonUpload.single("backup"),
-  async (req, res) => {
-    let data;
-    try {
-      if (!req.file) {
-        return res.status(400).json({ error: "No backup file provided" });
-      }
-      data = JSON.parse(req.file.buffer.toString("utf8"));
-    } catch (parseErr) {
-      return res.status(400).json({ error: "Invalid JSON: " + parseErr.message });
-    }
+router.post('/db/import', requireAdmin, jsonUpload.single('backup'), async (req, res) => {
+  let data;
+  try {
+    if (!req.file) return res.status(400).json({ error: 'No backup file provided' });
+    data = JSON.parse(req.file.buffer.toString('utf8'));
+  } catch (parseErr) {
+    return res.status(400).json({ error: 'Invalid JSON: ' + parseErr.message });
+  }
 
-    if (!data.version || !data.exported_at) {
+  if (!data.version || !data.exported_at) {
       return res.status(400).json({ error: "Invalid backup format (missing version/exported_at)" });
-    }
+  }
 
-    let client;
+  let client;
     try {
       client = await pool.connect();
     } catch (connErr) {
@@ -378,7 +362,7 @@ router.post(
       return res.status(500).json({ error: "Database connection failed: " + connErr.message });
     }
 
-    const stats = {};
+  const stats = {};
 
     // ── helpers ────────────────────────────────────────────────────────────────
     // Split an array into chunks of at most `size` elements.
@@ -407,27 +391,27 @@ router.post(
       // ── 1. admin_users ──────────────────────────────────────────────────────
       // Small table — row-by-row is fine; upsert by username.
       if (Array.isArray(data.admin_users) && data.admin_users.length > 0) {
-        for (const row of data.admin_users) {
-          await client.query(
+      for (const row of data.admin_users) {
+        await client.query(
             `INSERT INTO admin_users (username, password_hash, created_at)
              VALUES ($1,$2,$3)
              ON CONFLICT (username) DO UPDATE
                SET password_hash = EXCLUDED.password_hash`,
             [row.username, row.password_hash, row.created_at ?? new Date()],
-          );
-        }
-        stats.admin_users = data.admin_users.length;
+        );
+      }
+      stats.admin_users = data.admin_users.length;
       } else {
         stats.admin_users = 0;
-      }
+    }
 
       // ── 2. pixverse_accounts ─────────────────────────────────────────────────
       // Bulk upsert via unnest (single query). Then fetch the actual DB ids for
       // every imported email so we can build the backupId → currentDbId map.
       const accountIdMap = {};
-      if (Array.isArray(data.pixverse_accounts) && data.pixverse_accounts.length > 0) {
-        const accts = data.pixverse_accounts;
-        await client.query(
+    if (Array.isArray(data.pixverse_accounts) && data.pixverse_accounts.length > 0) {
+      const accts = data.pixverse_accounts;
+      await client.query(
           `INSERT INTO pixverse_accounts
              (email, username, password, token, account_id, invite_code,
               total_credits, remaining_credits, high_quality_times,
@@ -437,8 +421,8 @@ router.post(
              unnest($4::text[]),  unnest($5::bigint[]),unnest($6::text[]),
              unnest($7::int[]),   unnest($8::int[]),   unnest($9::int[]),
              unnest($10::bool[]), unnest($11::int[]),
-             unnest($12::timestamptz[]), unnest($13::timestamptz[])
-           ON CONFLICT (email) DO UPDATE SET
+                unnest($12::timestamptz[]), unnest($13::timestamptz[])
+         ON CONFLICT (email) DO UPDATE SET
              username           = EXCLUDED.username,
              password           = EXCLUDED.password,
              token              = EXCLUDED.token,
@@ -449,7 +433,7 @@ router.post(
              high_quality_times = EXCLUDED.high_quality_times,
              is_active          = EXCLUDED.is_active,
              last_used_at       = EXCLUDED.last_used_at`,
-          [
+        [
             accts.map((r) => r.email),
             accts.map((r) => r.username        ?? null),
             accts.map((r) => r.password        ?? null),
@@ -464,7 +448,7 @@ router.post(
             accts.map((r) => r.last_used_at    ?? null),
             accts.map((r) => r.created_at      ?? new Date()),
           ],
-        );
+      );
 
         // Fetch current DB ids for every email we just upserted
         const emails = accts.map((r) => r.email);
@@ -478,7 +462,7 @@ router.post(
           if (r.id != null && r.email) accountIdMap[r.id] = emailToId[r.email];
         }
 
-        stats.pixverse_accounts = accts.length;
+      stats.pixverse_accounts = accts.length;
       } else {
         stats.pixverse_accounts = 0;
       }

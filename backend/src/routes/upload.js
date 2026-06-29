@@ -1,7 +1,7 @@
 const express = require('express');
 const multer = require('multer');
 const pool = require('../db/pool');
-const sessionId = require('../middleware/sessionId');
+const { requireUserAuth } = require('../middleware/userAuth');
 const accountManager = require('../services/accountManager');
 
 const debugLog = (...args) => { if (process.env.NODE_ENV !== 'production') console.log(...args); };
@@ -9,7 +9,6 @@ const pixverse = require('../services/pixverseClient');
 const ossUploader = require('../services/ossUploader');
 
 const router = express.Router();
-router.use(sessionId);
 
 // Store file in memory for OSS upload
 const upload = multer({
@@ -23,7 +22,7 @@ const upload = multer({
 });
 
 // POST /api/upload/image
-router.post('/image', upload.single('image'), async (req, res) => {
+router.post('/image', requireUserAuth, upload.single('image'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No image file provided' });
 
   debugLog(`[Upload] Received file: ${req.file.originalname} size=${req.file.size} mime=${req.file.mimetype}`);
@@ -76,10 +75,10 @@ router.post('/image', upload.single('image'), async (req, res) => {
 
     // Save to DB
     await pool.query(
-      `INSERT INTO uploaded_images (session_id, pixverse_image_id, url, path, file_name, width, height, uploaded_via_account)
+      `INSERT INTO uploaded_images (user_id, pixverse_image_id, url, path, file_name, width, height, uploaded_via_account)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
       [
-        req.sessionId,
+        req.userId,
         uploaded.id || uploaded.asset_id,
         uploaded.url,
         uploaded.path,
@@ -110,15 +109,15 @@ router.post('/image', upload.single('image'), async (req, res) => {
 });
 
 // GET /api/upload/my-images — list user's uploaded images
-router.get('/my-images', async (req, res) => {
+router.get('/my-images', requireUserAuth, async (req, res) => {
   try {
     const { rows } = await pool.query(
       `SELECT id, pixverse_image_id, url, path, file_name, width, height, created_at
        FROM uploaded_images
-       WHERE session_id = $1
+       WHERE user_id = $1
        ORDER BY created_at DESC
        LIMIT 50`,
-      [req.sessionId]
+      [req.userId]
     );
     res.json(rows);
   } catch (err) {

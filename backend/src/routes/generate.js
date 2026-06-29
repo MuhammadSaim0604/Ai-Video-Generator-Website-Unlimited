@@ -1,7 +1,7 @@
 const express = require('express');
 const { v4: uuidv4 } = require('uuid');
 const pool = require('../db/pool');
-const sessionId = require('../middleware/sessionId');
+const { requireUserAuth } = require('../middleware/userAuth');
 const {
   VIDEO_MODEL_MAP,
   IMAGE_QUALITY_MAP,
@@ -10,10 +10,9 @@ const {
 } = require('../constants/models');
 
 const router = express.Router();
-router.use(sessionId);
 
 // POST /api/generate/image
-router.post('/image', async (req, res) => {
+router.post('/image', requireUserAuth, async (req, res) => {
   try {
     const {
       model,           // 'qwen-image' or 'seedream-4.0'
@@ -44,12 +43,12 @@ router.post('/image', async (req, res) => {
 
     await pool.query(
       `INSERT INTO generation_jobs
-         (job_id, session_id, queue_type, mode, display_model, internal_model, prompt,
+         (job_id, user_id, queue_type, mode, display_model, internal_model, prompt,
           quality, aspect_ratio, seed, customer_img_path, status, queue_position)
        VALUES ($1,$2,'image',$3,$4,$4,$5,$6,$7,$8,$9,'queued',$10)`,
       [
         jobId,
-        req.sessionId,
+        req.userId,
         mode,
         model,
         prompt,
@@ -69,7 +68,7 @@ router.post('/image', async (req, res) => {
 });
 
 // POST /api/generate/video
-router.post('/video', async (req, res) => {
+router.post('/video', requireUserAuth, async (req, res) => {
   try {
     const {
       model,           // Display: 'Veo 3.1' | 'Veo 3.1 Fast' | 'Veo 3.1 Standard'
@@ -102,12 +101,12 @@ router.post('/video', async (req, res) => {
 
     await pool.query(
       `INSERT INTO generation_jobs
-         (job_id, session_id, queue_type, mode, display_model, internal_model, prompt,
+         (job_id, user_id, queue_type, mode, display_model, internal_model, prompt,
           quality, aspect_ratio, duration, seed, customer_img_path, status, queue_position)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'queued',$13)`,
       [
         jobId,
-        req.sessionId,
+        req.userId,
         queueType,
         mode,
         model,
@@ -130,7 +129,7 @@ router.post('/video', async (req, res) => {
 });
 
 // GET /api/generate/status/:jobId
-router.get('/status/:jobId', async (req, res) => {
+router.get('/status/:jobId', requireUserAuth, async (req, res) => {
   try {
     const { rows } = await pool.query(
       `SELECT job_id, status, queue_type, mode, display_model, prompt, quality,
