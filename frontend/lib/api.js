@@ -1,8 +1,11 @@
-import { useAuthStore } from './store';
+let _token = null;
+
+export function setToken(token) {
+  _token = token;
+}
 
 function getToken() {
-  if (typeof window === 'undefined') return null;
-  return useAuthStore.getState().token;
+  return _token;
 }
 
 async function apiFetch(path, options = {}) {

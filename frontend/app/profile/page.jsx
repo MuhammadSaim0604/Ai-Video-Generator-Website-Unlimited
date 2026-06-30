@@ -4,11 +4,11 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import Logo from "../../components/Logo";
-import { useAuthStore } from "../../lib/store";
+import { useUserAuthStore } from "../../stores/user/user.auth.store";
 import { Video, Image as ImageIcon, Clock, ArrowLeft, Loader2, User, LogOut } from "lucide-react";
 
 export default function ProfilePage() {
-  const { isSignedIn, user, logout, isLoaded } = useAuthStore();
+  const { isSignedIn, user, logout, isLoaded } = useUserAuthStore();
   const router = useRouter();
   const [stats, setStats] = useState(null);
 

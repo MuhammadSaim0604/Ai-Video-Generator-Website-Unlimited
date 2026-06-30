@@ -152,7 +152,7 @@ export default function GenerationCard({ job, onSelect }) {
       </div>
 
       {/* Info row */}
-      <div className="p-3 space-y-2">
+      {/* <div className="p-3 space-y-2">
         <div className="flex items-center justify-between gap-2">
           <Badge
             variant={cfg.variant}
@@ -178,7 +178,7 @@ export default function GenerationCard({ job, onSelect }) {
         {job.display_model && (
           <p className="text-[10px] text-primary/70">{job.display_model}</p>
         )}
-      </div>
+      </div> */}
     </div>
   );
 }

@@ -12,12 +12,11 @@ import AccountsUpload from '../../../components/admin/AccountsUpload';
 import QueueSettings from '../../../components/admin/QueueSettings';
 import StatsCards from '../../../components/admin/StatsCards';
 import AdminJobModal from '../../../components/admin/AdminJobModal';
-import {
-  adminGetMe, adminLogout, adminGetDashboard,
-  adminGetJobs, adminToggleAccount, adminSyncCredits,
-  adminSyncAll, adminSyncUsed, adminExportAccounts,
-  adminExportDb, adminImportDb,
-} from '../../../lib/api';
+import { useAdminAuthStore } from '../../../stores/admin/admin.auth.store';
+import { useAdminStatsStore } from '../../../stores/admin/admin.stats.store';
+import { useAdminAccountsStore } from '../../../stores/admin/admin.accounts.store';
+import { useAdminSettingsStore } from '../../../stores/admin/admin.settings.store';
+import { useAdminJobsStore } from '../../../stores/admin/admin.jobs.store';
 import { subscribeAdmin } from '../../../lib/socket';
 import { formatRelativeTime, isVideoJob } from '../../../lib/utils';
 
@@ -34,139 +33,66 @@ const STATUS_COLORS = {
 
 export default function AdminDashboardPage() {
   const router = useRouter();
-  const [activeTab, setActiveTab]     = useState('dashboard');
-  const [dashboard, setDashboard]     = useState(null);
-  const [jobs, setJobs]               = useState([]);
-  const [accounts, setAccounts]       = useState([]);
-  const [loading, setLoading]         = useState(true);
-  const [username, setUsername]       = useState('');
+  const [activeTab, setActiveTab] = useState('dashboard');
   const [selectedJob, setSelectedJob] = useState(null);
-  const [syncingAll, setSyncingAll]   = useState(false);
-  const [syncingUsed, setSyncingUsed] = useState(false);
-  const [exporting, setExporting]     = useState(false);
-  const [syncMsg, setSyncMsg]         = useState('');
 
-  useEffect(() => {
-    adminGetMe()
-      .then((d) => setUsername(d.username))
-      .catch(() => router.push('/admin/login'));
-  }, [router]);
+  const { username, checkAuth, logout } = useAdminAuthStore();
+  const { dashboard, loading, loadDashboard } = useAdminStatsStore();
+  const {
+    accounts, syncingAll, syncingUsed, exporting, syncMsg,
+    setAccounts, toggleAccount, syncOne, syncAll, syncUsed, exportAccounts,
+  } = useAdminAccountsStore();
+  const { dbExporting, dbImporting, dbMsg, exportDb, importDb } = useAdminSettingsStore();
+  const { jobs, loadJobs: loadAdminJobs } = useAdminJobsStore();
 
-  const loadDashboard = useCallback(async () => {
-    setLoading(true);
+  const refreshAll = useCallback(async () => {
     try {
-      const data = await adminGetDashboard();
-      setDashboard(data);
-      setAccounts(data.accounts || []);
+      const data = await loadDashboard();
+      if (data?.accounts) setAccounts(data.accounts);
     } catch (err) {
       if (err.message?.includes('401')) router.push('/admin/login');
-    } finally {
-      setLoading(false);
     }
-  }, [router]);
+  }, [loadDashboard, setAccounts, router]);
 
-  const loadJobs = useCallback(async () => {
-    try {
-      const data = await adminGetJobs({ limit: 50 });
-      setJobs(data.jobs || []);
-    } catch (err) {
-      console.error(err);
-    }
-  }, []);
+  useEffect(() => {
+    checkAuth().then((ok) => {
+      if (!ok) router.push('/admin/login');
+    });
+  }, [checkAuth, router]);
 
-  useEffect(() => { loadDashboard(); }, [loadDashboard]);
-  useEffect(() => { if (activeTab === 'jobs') loadJobs(); }, [activeTab, loadJobs]);
+  useEffect(() => { refreshAll(); }, [refreshAll]);
+
+  useEffect(() => {
+    if (activeTab === 'jobs') loadAdminJobs();
+  }, [activeTab, loadAdminJobs]);
 
   useEffect(() => {
     const unsub = subscribeAdmin({
-      onQueueUpdate: () => loadDashboard(),
-      onAccountsUpdated: () => loadDashboard(),
+      onQueueUpdate: () => refreshAll(),
+      onAccountsUpdated: () => refreshAll(),
     });
     return unsub;
-  }, [loadDashboard]);
+  }, [refreshAll]);
 
   async function handleLogout() {
-    await adminLogout().catch(() => {});
+    await logout();
     router.push('/admin/login');
   }
 
-  async function handleToggleAccount(id) {
-    await adminToggleAccount(id);
-    setAccounts((prev) => prev.map((a) => a.id === id ? { ...a, is_active: !a.is_active } : a));
-  }
-
   async function handleSyncOne(id) {
-    await adminSyncCredits(id);
-    loadDashboard();
-  }
-
-  async function handleSyncAll() {
-    setSyncingAll(true);
-    setSyncMsg('');
-    try {
-      const res = await adminSyncAll();
-      setSyncMsg(`Synced ${res.synced} accounts`);
-      loadDashboard();
-    } catch { setSyncMsg('Sync failed'); }
-    finally { setSyncingAll(false); setTimeout(() => setSyncMsg(''), 3000); }
-  }
-
-  async function handleSyncUsed() {
-    setSyncingUsed(true);
-    setSyncMsg('');
-    try {
-      const res = await adminSyncUsed();
-      setSyncMsg(`Synced ${res.synced} used accounts`);
-      loadDashboard();
-    } catch { setSyncMsg('Sync failed'); }
-    finally { setSyncingUsed(false); setTimeout(() => setSyncMsg(''), 3000); }
-  }
-
-  async function handleExport() {
-    setExporting(true);
-    try { await adminExportAccounts(); }
-    catch { alert('Export failed'); }
-    finally { setExporting(false); }
-  }
-
-  const [dbExporting, setDbExporting]   = useState(false);
-  const [dbImporting, setDbImporting]   = useState(false);
-  const [dbMsg, setDbMsg]               = useState(null); // { type: 'success'|'error', text }
-
-  async function handleDbExport() {
-    setDbExporting(true);
-    setDbMsg(null);
-    try {
-      await adminExportDb();
-      setDbMsg({ type: 'success', text: 'Backup downloaded successfully' });
-    } catch (err) {
-      setDbMsg({ type: 'error', text: err.message || 'Export failed' });
-    } finally {
-      setDbExporting(false);
-      setTimeout(() => setDbMsg(null), 4000);
-    }
+    await syncOne(id);
+    refreshAll();
   }
 
   async function handleDbImport(e) {
     const file = e.target.files?.[0];
     if (!file) return;
     if (!confirm(`Import backup "${file.name}"? Existing records will be updated with data from this backup.`)) return;
-    setDbImporting(true);
-    setDbMsg(null);
     try {
-      const res = await adminImportDb(file);
-      const counts = Object.entries(res.imported || {})
-        .map(([t, n]) => `${t}: ${n}`)
-        .join(', ');
-      setDbMsg({ type: 'success', text: `Import complete — ${counts}` });
-      loadDashboard();
-    } catch (err) {
-      setDbMsg({ type: 'error', text: err.message || 'Import failed' });
-    } finally {
-      setDbImporting(false);
-      e.target.value = '';
-      setTimeout(() => setDbMsg(null), 6000);
-    }
+      await importDb(file);
+      refreshAll();
+    } catch (_) {}
+    finally { e.target.value = ''; }
   }
 
   return (
@@ -209,7 +135,7 @@ export default function AdminDashboardPage() {
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-xl font-bold capitalize">{activeTab.replace('_', ' ')}</h1>
           <button
-            onClick={loadDashboard}
+            onClick={refreshAll}
             disabled={loading}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg glass text-sm text-muted-foreground hover:text-foreground transition-colors"
           >
@@ -283,10 +209,9 @@ export default function AdminDashboardPage() {
         {/* ── Accounts Tab ── */}
         {activeTab === 'accounts' && (
           <div className="space-y-6">
-            <AccountsUpload onUploaded={loadDashboard} />
+            <AccountsUpload onUploaded={refreshAll} />
 
             <div className="glass rounded-xl overflow-hidden">
-              {/* Accounts header with bulk actions */}
               <div className="p-4 border-b border-border flex flex-wrap items-center justify-between gap-3">
                 <h2 className="font-semibold">Pixverse Accounts ({accounts.length})</h2>
                 <div className="flex items-center gap-2 flex-wrap">
@@ -294,7 +219,7 @@ export default function AdminDashboardPage() {
                     <span className="text-xs text-emerald-400">{syncMsg}</span>
                   )}
                   <button
-                    onClick={handleSyncAll}
+                    onClick={syncAll}
                     disabled={syncingAll}
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg glass text-xs text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
                     title="Sync credits for all active accounts"
@@ -305,7 +230,7 @@ export default function AdminDashboardPage() {
                     Sync All
                   </button>
                   <button
-                    onClick={handleSyncUsed}
+                    onClick={syncUsed}
                     disabled={syncingUsed}
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg glass text-xs text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
                     title="Sync only accounts that have processed jobs"
@@ -316,7 +241,7 @@ export default function AdminDashboardPage() {
                     Sync Used
                   </button>
                   <button
-                    onClick={handleExport}
+                    onClick={exportAccounts}
                     disabled={exporting}
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary/10 text-primary text-xs font-medium hover:bg-primary/20 transition-colors disabled:opacity-50"
                     title="Export all accounts as importable JSON"
@@ -375,7 +300,7 @@ export default function AdminDashboardPage() {
                               Sync
                             </button>
                             <button
-                              onClick={() => handleToggleAccount(acc.id)}
+                              onClick={() => toggleAccount(acc.id)}
                               className={`text-xs px-2 py-1 rounded hover:bg-white/5 ${acc.is_active ? 'text-red-400' : 'text-emerald-400'}`}
                             >
                               {acc.is_active ? 'Disable' : 'Enable'}
@@ -399,9 +324,8 @@ export default function AdminDashboardPage() {
         {/* ── Settings Tab ── */}
         {activeTab === 'settings' && (
           <div className="space-y-6">
-            <QueueSettings initialSettings={dashboard?.settings} onSaved={loadDashboard} />
+            <QueueSettings initialSettings={dashboard?.settings} onSaved={refreshAll} />
 
-            {/* Database Backup */}
             <div className="glass rounded-xl p-5 max-w-2xl space-y-4">
               <h2 className="font-semibold flex items-center gap-2">
                 <HardDrive className="w-4 h-4 text-primary" />
@@ -412,7 +336,6 @@ export default function AdminDashboardPage() {
                 Use the same file to restore data on any server running this app.
               </p>
 
-              {/* Status message */}
               {dbMsg && (
                 <div className={`flex items-center gap-2 text-xs px-3 py-2 rounded-lg ${
                   dbMsg.type === 'success'
@@ -427,9 +350,8 @@ export default function AdminDashboardPage() {
               )}
 
               <div className="flex flex-wrap gap-3">
-                {/* Export */}
                 <button
-                  onClick={handleDbExport}
+                  onClick={exportDb}
                   disabled={dbExporting}
                   className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
                 >
@@ -439,7 +361,6 @@ export default function AdminDashboardPage() {
                   Export Full DB
                 </button>
 
-                {/* Import */}
                 <label className={`flex items-center gap-2 px-4 py-2 rounded-lg glass text-sm font-medium cursor-pointer hover:bg-white/10 transition-colors ${dbImporting ? 'opacity-50 pointer-events-none' : ''}`}>
                   {dbImporting
                     ? <Loader2 className="w-4 h-4 animate-spin" />
@@ -468,7 +389,7 @@ export default function AdminDashboardPage() {
           <div className="glass rounded-xl overflow-hidden">
             <div className="p-4 border-b border-border flex items-center justify-between">
               <h2 className="font-semibold">Recent Jobs <span className="text-xs text-muted-foreground font-normal ml-1">— click any row to view details</span></h2>
-              <button onClick={loadJobs} className="text-xs text-muted-foreground hover:text-foreground p-1.5 rounded hover:bg-white/5">
+              <button onClick={loadAdminJobs} className="text-xs text-muted-foreground hover:text-foreground p-1.5 rounded hover:bg-white/5">
                 <RefreshCw className="w-3.5 h-3.5" />
               </button>
             </div>
@@ -521,7 +442,7 @@ export default function AdminDashboardPage() {
                   ))}
                   {jobs.length === 0 && (
                     <tr><td colSpan={6} className="px-4 py-8 text-center text-muted-foreground text-sm">
-                      No jobs yet.
+                      No jobs found.
                     </td></tr>
                   )}
                 </tbody>
@@ -531,7 +452,6 @@ export default function AdminDashboardPage() {
         )}
       </main>
 
-      {/* Job detail modal */}
       {selectedJob && (
         <AdminJobModal job={selectedJob} onClose={() => setSelectedJob(null)} />
       )}

@@ -2,10 +2,11 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Loader2, Lock } from 'lucide-react';
-import { adminLogin } from '../../../lib/api';
+import { useAdminAuthStore } from '../../../stores/admin/admin.auth.store';
 
 export default function AdminLoginPage() {
   const router = useRouter();
+  const { login } = useAdminAuthStore();
   const [username, setUsername] = useState('admin');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -16,7 +17,7 @@ export default function AdminLoginPage() {
     setError('');
     setLoading(true);
     try {
-      await adminLogin(username, password);
+      await login(username, password);
       router.push('/admin/dashboard');
     } catch (err) {
       setError(err.message || 'Login failed');

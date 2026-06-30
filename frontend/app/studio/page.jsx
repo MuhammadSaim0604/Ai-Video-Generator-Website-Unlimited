@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Wand2, RefreshCw, Image as ImageIcon, Video, LogIn, User } from "lucide-react";
 import PromptInputContainer from "../../components/PromptInputContainer";
@@ -8,8 +8,8 @@ import VideoViewModal from "../../components/VideoViewModal";
 import ImageViewModal from "../../components/ImageViewModal";
 import AuthModal from "../../components/AuthModal";
 import Logo from "../../components/Logo";
-import { useAuthStore, useJobsStore } from "../../lib/store";
-import { getMyGallery } from "../../lib/api";
+import { useUserAuthStore } from "../../stores/user/user.auth.store";
+import { useUserJobsStore } from "../../stores/user/user.jobs.store";
 import { subscribeToJob } from "../../lib/socket";
 import { cn, isVideoJob } from "../../lib/utils";
 
@@ -19,35 +19,22 @@ const TABS = [
 ];
 
 export default function StudioPage() {
-  const { isSignedIn, isLoaded } = useAuthStore();
-  const { jobs, setJobs, addJob, updateJob } = useJobsStore();
-  const [loading, setLoading] = useState(false);
+  const { isSignedIn, isLoaded } = useUserAuthStore();
+  const { jobs, loading, loadJobs, addJob, updateJob } = useUserJobsStore();
+
   const [activeTab, setActiveTab] = useState("images");
   const [selectedJob, setSelectedJob] = useState(null);
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [authModalMessage, setAuthModalMessage] = useState("");
 
-  const loadJobs = useCallback(async () => {
-    if (!useAuthStore.getState().isSignedIn) return;
-    setLoading(true);
-    try {
-      const data = await getMyGallery();
-      setJobs(data);
-    } catch (err) {
-      console.error("Load jobs error:", err.message);
-    } finally {
-      setLoading(false);
-    }
-  }, [setJobs]);
-
   useEffect(() => {
     if (isLoaded && isSignedIn) {
       loadJobs();
     }
-  }, [isLoaded, isSignedIn, loadJobs]);
+  }, [isLoaded, isSignedIn]);
 
   function requireAuth(message) {
-    if (!useAuthStore.getState().isSignedIn) {
+    if (!useUserAuthStore.getState().isSignedIn) {
       setAuthModalMessage(message || "");
       setAuthModalOpen(true);
       return false;
@@ -112,7 +99,7 @@ export default function StudioPage() {
                 className="p-1.5 rounded-lg hover:bg-white/5 transition-colors text-muted-foreground hover:text-foreground"
                 title="Refresh"
               >
-                <RefreshCw className="w-4 h-4" />
+                <RefreshCw className={cn("w-4 h-4", loading && "animate-spin")} />
               </button>
             )}
             {isLoaded && (
@@ -126,9 +113,6 @@ export default function StudioPage() {
                 </Link>
               ) : (
                 <div className="flex items-center gap-2">
-                  <Link href="/sign-in" className="hidden sm:flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors">
-                    Sign In
-                  </Link>
                   <Link href="/sign-in" className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors">
                     <LogIn className="w-3.5 h-3.5" />
                     <span className="hidden sm:inline">Sign In Free</span>

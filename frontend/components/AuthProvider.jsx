@@ -1,11 +1,13 @@
 'use client';
 import { useEffect } from 'react';
-import { useAuthStore } from '../lib/store';
+import { useUserAuthStore } from '../stores/user/user.auth.store';
+import { setToken } from '../lib/api';
 import { reinitSocket } from '../lib/socket';
 
 export default function AuthProvider({ children }) {
   useEffect(() => {
-    useAuthStore.getState().initAuth().then((token) => {
+    useUserAuthStore.getState().initAuth().then((token) => {
+      setToken(token);
       if (token) reinitSocket(token);
     });
   }, []);

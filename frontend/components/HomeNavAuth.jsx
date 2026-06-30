@@ -1,10 +1,10 @@
 'use client';
 import Link from 'next/link';
 import { Wand2 } from 'lucide-react';
-import { useAuthStore } from '../lib/store';
+import { useUserAuthStore } from '../stores/user/user.auth.store';
 
 export default function HomeNavAuth() {
-  const { isSignedIn, isLoaded } = useAuthStore();
+  const { isSignedIn, isLoaded } = useUserAuthStore();
 
   if (!isLoaded) {
     return (

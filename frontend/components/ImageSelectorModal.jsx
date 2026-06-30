@@ -4,51 +4,40 @@ import { Upload, X, Image as ImageIcon, Check, Loader2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from './ui/tabs';
 import { Button } from './ui/button';
-import { uploadImage, getMyUploadedImages, getMyCreatedImages } from '../lib/api';
+import { useUserImagesStore } from '../stores/user/user.images.store';
 import { cn } from '../lib/utils';
 
 export default function ImageSelectorModal({ open, onClose, onSelect }) {
   const [tab, setTab] = useState('uploaded');
-  const [uploadedImages, setUploadedImages] = useState([]);
-  const [createdImages, setCreatedImages] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [uploading, setUploading] = useState(false);
   const [selected, setSelected] = useState(null);
-  const [uploadError, setUploadError] = useState('');
   const fileInputRef = useRef(null);
+
+  const {
+    uploadedImages,
+    createdImages,
+    loading,
+    uploading,
+    uploadError,
+    loadImages,
+    uploadImage,
+    clearUploadError,
+  } = useUserImagesStore();
 
   useEffect(() => {
     if (!open) return;
     loadImages();
+    setSelected(null);
+    clearUploadError();
   }, [open]);
-
-  async function loadImages() {
-    setLoading(true);
-    try {
-      const [uploaded, created] = await Promise.all([
-        getMyUploadedImages().catch(() => []),
-        getMyCreatedImages().catch(() => []),
-      ]);
-      setUploadedImages(uploaded);
-      setCreatedImages(created);
-    } finally {
-      setLoading(false);
-    }
-  }
 
   async function handleFileChange(e) {
     const file = e.target.files?.[0];
     if (!file) return;
-    setUploading(true);
-    setUploadError('');
     try {
       const result = await uploadImage(file);
-      setUploadedImages((prev) => [result, ...prev]);
       setSelected(result);
-    } catch (err) {
-      setUploadError(err.message || 'Upload failed');
-    } finally {
-      setUploading(false);
+    } catch (_) {}
+    finally {
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
   }

@@ -6,8 +6,8 @@ import { Button } from "./ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { Slider } from "./ui/slider";
 import ImageSelectorModal from "./ImageSelectorModal";
-import { generateImage, generateVideo } from "../lib/api";
-import { useAuthStore } from "../lib/store";
+import { useUserAuthStore } from "../stores/user/user.auth.store";
+import { useUserJobsStore } from "../stores/user/user.jobs.store";
 import { getVideoModelAspectRatios, getImageModelAspectRatios, getImageModelResolutions, cn } from "../lib/utils";
 
 const VIDEO_MODELS = ["Veo 3.1", "Veo 3.1 Fast", "Veo 3.1 Standard"];
@@ -15,7 +15,7 @@ const VIDEO_RESOLUTIONS = ["360p", "540p", "720p", "1080p"];
 const IMAGE_MODELS = ["qwen-image", "seedream-4.0"];
 
 export default function PromptInputContainer({ onJobQueued, onAuthRequired }) {
-  const { isSignedIn, isLoaded } = useAuthStore();
+  const { isSignedIn, isLoaded } = useUserAuthStore();
   const signedIn = isSignedIn && isLoaded;
 
   const [activeTab, setActiveTab] = useState("image");
@@ -56,7 +56,7 @@ export default function PromptInputContainer({ onJobQueued, onAuthRequired }) {
   }
 
   function handleAttachClick() {
-    if (!useAuthStore.getState().isSignedIn) {
+    if (!useUserAuthStore.getState().isSignedIn) {
       onAuthRequired?.("Sign in to upload images for AI-to-video or image-to-image generation.");
       return;
     }
@@ -71,7 +71,7 @@ export default function PromptInputContainer({ onJobQueued, onAuthRequired }) {
   }
 
   async function handleGenerate() {
-    if (!useAuthStore.getState().isSignedIn) {
+    if (!useUserAuthStore.getState().isSignedIn) {
       onAuthRequired?.(
         activeTab === "image"
           ? "Sign in to generate unlimited AI images for free."
@@ -85,7 +85,7 @@ export default function PromptInputContainer({ onJobQueued, onAuthRequired }) {
     try {
       let result;
       if (activeTab === "image") {
-        result = await generateImage({
+        result = await useUserJobsStore.getState().submitImageJob({
           model: imageModel,
           prompt: prompt.trim(),
           quality: imageQuality,
@@ -93,7 +93,7 @@ export default function PromptInputContainer({ onJobQueued, onAuthRequired }) {
           customer_img_path: selectedImage?.path || null,
         });
       } else {
-        result = await generateVideo({
+        result = await useUserJobsStore.getState().submitVideoJob({
           model: videoModel,
           prompt: prompt.trim(),
           quality: videoQuality,

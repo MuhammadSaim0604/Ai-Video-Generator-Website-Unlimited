@@ -1,9 +1,9 @@
 'use client';
 import Link from 'next/link';
-import { useAuthStore } from '../lib/store';
+import { useUserAuthStore } from '../stores/user/user.auth.store';
 
 export default function HomeStartLink({ children, className }) {
-  const isSignedIn = useAuthStore((s) => s.isSignedIn);
+  const isSignedIn = useUserAuthStore((s) => s.isSignedIn);
   return (
     <Link href={isSignedIn ? '/studio' : '/sign-in'} className={className}>
       {children}
