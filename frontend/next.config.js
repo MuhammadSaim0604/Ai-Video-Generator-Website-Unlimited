@@ -6,7 +6,13 @@ const nextConfig = {
     remotePatterns: [
       { protocol: 'https', hostname: 'media.pixverse.ai' },
       { protocol: 'https', hostname: 'pixverse-fe-upload.oss-accelerate.aliyuncs.com' },
+      { protocol: 'https', hostname: 'lh3.googleusercontent.com' },
     ],
+  },
+  async redirects() {
+    return [
+      { source: '/sign-up', destination: '/sign-in', permanent: false },
+    ];
   },
   async rewrites() {
     return [

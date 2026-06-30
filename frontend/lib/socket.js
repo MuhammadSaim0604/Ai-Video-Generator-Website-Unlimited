@@ -1,33 +1,37 @@
 "use client";
-
 import { io } from "socket.io-client";
 
 let socket = null;
 
+function createSocket(token) {
+  const url = typeof window !== "undefined" ? process.env.NODE_ENV === "production" ? window.location.origin : "http://localhost:3001" : "http://localhost:3001";
+  const s = io(url, {
+    path: "/socket.io",
+    transports: ["websocket"],
+    withCredentials: true,
+    auth: { token: token || "" },
+    reconnectionAttempts: 10,
+    reconnectionDelay: 1000,
+  });
+  s.on("connect", () => console.log("[Socket] Connected:", s.id));
+  s.on("disconnect", () => console.log("[Socket] Disconnected"));
+  s.on("connect_error", (err) => console.warn("[Socket] Error:", err.message));
+  return s;
+}
+
 export function getSocket() {
   if (!socket) {
-    const socketUrl =
-      typeof window !== "undefined"
-        ? window.location.origin
-        : "http://localhost:5000";
-    socket = io(socketUrl, {
-      path: "/socket.io",
-      // Force HTTP long-polling only — WebSocket upgrades don't work through
-      // Next.js rewrites (they're HTTP-only proxies). Polling is reliable and
-      // sufficient for generation status updates.
-      // transports: ["polling", "websocket"], // direct connection — both transports work
-      transports: ["websocket"], // direct connection — both transports work
-      withCredentials: true,
-      reconnectionAttempts: 10,
-      reconnectionDelay: 1000,
-    });
-
-    socket.on("connect", () => console.log("[Socket] Connected:", socket.id));
-    socket.on("disconnect", () => console.log("[Socket] Disconnected"));
-    socket.on("connect_error", (err) =>
-      console.warn("[Socket] Error:", err.message),
-    );
+    socket = createSocket(null);
   }
+  return socket;
+}
+
+export function reinitSocket(token) {
+  if (socket) {
+    socket.disconnect();
+    socket = null;
+  }
+  socket = createSocket(token);
   return socket;
 }
 
@@ -36,23 +40,16 @@ export function subscribeToJob(jobId, callbacks = {}) {
   s.emit("subscribe_job", jobId);
 
   const handlers = {};
-
   if (callbacks.onProcessing) {
-    handlers.processing = (data) => {
-      if (data.jobId === jobId) callbacks.onProcessing(data);
-    };
+    handlers.processing = (data) => { if (data.jobId === jobId) callbacks.onProcessing(data); };
     s.on("job:processing", handlers.processing);
   }
   if (callbacks.onCompleted) {
-    handlers.completed = (data) => {
-      if (data.jobId === jobId) callbacks.onCompleted(data);
-    };
+    handlers.completed = (data) => { if (data.jobId === jobId) callbacks.onCompleted(data); };
     s.on("job:completed", handlers.completed);
   }
   if (callbacks.onFailed) {
-    handlers.failed = (data) => {
-      if (data.jobId === jobId) callbacks.onFailed(data);
-    };
+    handlers.failed = (data) => { if (data.jobId === jobId) callbacks.onFailed(data); };
     s.on("job:failed", handlers.failed);
   }
 
@@ -65,13 +62,12 @@ export function subscribeToJob(jobId, callbacks = {}) {
 }
 
 export function subscribeAdmin(callbacks = {}) {
+  const adminToken = typeof window !== "undefined" ? localStorage.getItem("veo3_admin_token") : null;
   const s = getSocket();
-  s.emit("subscribe_admin");
+  s.emit("subscribe_admin", { token: adminToken });
   if (callbacks.onQueueUpdate) s.on("queue:update", callbacks.onQueueUpdate);
-  if (callbacks.onAccountsUpdated)
-    s.on("accounts:updated", callbacks.onAccountsUpdated);
-  if (callbacks.onSettingsUpdated)
-    s.on("queue:settings_updated", callbacks.onSettingsUpdated);
+  if (callbacks.onAccountsUpdated) s.on("accounts:updated", callbacks.onAccountsUpdated);
+  if (callbacks.onSettingsUpdated) s.on("queue:settings_updated", callbacks.onSettingsUpdated);
   return () => {
     s.off("queue:update");
     s.off("accounts:updated");

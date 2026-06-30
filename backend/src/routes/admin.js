@@ -284,7 +284,7 @@ router.get("/db/export", requireAdmin, async (req, res) => {
         FROM site_analytics ORDER BY id
       `),
       pool.query(`
-        SELECT id, job_id, session_id, queue_type, mode, internal_model,
+        SELECT id, job_id, user_id, queue_type, mode, internal_model,
                            display_model, prompt, quality, aspect_ratio, duration, seed,
                            audio, customer_img_path, customer_img_paths,
                            pixverse_job_id, pixverse_account_id, status,
@@ -293,7 +293,7 @@ router.get("/db/export", requireAdmin, async (req, res) => {
         FROM generation_jobs ORDER BY id
       `),
       pool.query(`
-        SELECT id, user_id, session_id, pixverse_image_id, url, path, file_name,
+        SELECT id, user_id, user_id, pixverse_image_id, url, path, file_name,
                width, height, uploaded_via_account, created_at
         FROM uploaded_images ORDER BY id
       `),
@@ -547,7 +547,7 @@ router.post('/db/import', requireAdmin, jsonUpload.single('backup'), async (req,
                 : null;
             return [
               row.job_id,
-              row.session_id,
+              row.user_id,
               row.queue_type,
               row.mode,
               row.internal_model    ?? null,
@@ -577,7 +577,7 @@ router.post('/db/import', requireAdmin, jsonUpload.single('backup'), async (req,
           const { sql, params } = buildValues(rows);
           await client.query(
             `INSERT INTO generation_jobs
-               (job_id, session_id, queue_type, mode, internal_model, display_model,
+               (job_id, user_id, queue_type, mode, internal_model, display_model,
                 prompt, quality, aspect_ratio, duration, seed, audio,
                 customer_img_path, customer_img_paths,
                 pixverse_job_id, pixverse_account_id, status,
@@ -593,13 +593,13 @@ router.post('/db/import', requireAdmin, jsonUpload.single('backup'), async (req,
       }
 
       // ── 6. uploaded_images ──────────────────────────────────────────────────
-      // Bulk insert via unnest with server-side dedup by (session_id, url).
+      // Bulk insert via unnest with server-side dedup by (user_id, url).
       // uploaded_via_account FK remapped via accountIdMap.
       if (Array.isArray(data.uploaded_images) && data.uploaded_images.length > 0) {
         const imgs = data.uploaded_images;
         const { rowCount } = await client.query(
           `INSERT INTO uploaded_images
-             (session_id, pixverse_image_id, url, path, file_name,
+             (user_id, pixverse_image_id, url, path, file_name,
               width, height, uploaded_via_account, created_at)
            SELECT t.sid, t.piid, t.url, t.path, t.fname,
                   t.w, t.h, t.acct, t.cat
@@ -617,10 +617,10 @@ router.post('/db/import', requireAdmin, jsonUpload.single('backup'), async (req,
            ) t
            WHERE NOT EXISTS (
              SELECT 1 FROM uploaded_images ui
-             WHERE ui.session_id = t.sid AND ui.url = t.url
+             WHERE ui.user_id = t.sid AND ui.url = t.url
            )`,
           [
-            imgs.map((r) => r.session_id),
+            imgs.map((r) => r.user_id),
             imgs.map((r) => r.pixverse_image_id  ?? null),
             imgs.map((r) => r.url),
             imgs.map((r) => r.path),

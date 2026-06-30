@@ -15,23 +15,25 @@ async function optionalUserAuth(req, res, next) {
   req.userId = null;
   req.user = null;
 
-  const cookieToken = req.cookies?.[COOKIE_NAME];
-  if (cookieToken) {
-    const payload = extractPayload(cookieToken);
-    if (payload) {
-      req.userId = String(payload.userId);
+  // Authorization header takes priority over cookie
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    const payload = extractPayload(authHeader.slice(7));
+    if (payload && payload.userId) {
+      req.userId = payload.userId;
       req.user = payload;
       return next();
     }
   }
 
-  const authHeader = req.headers.authorization;
-  if (authHeader && authHeader.startsWith('Bearer ')) {
-    const token = authHeader.slice(7);
-    const payload = extractPayload(token);
-    if (payload) {
-      req.userId = String(payload.userId);
+  // Fallback: cookie
+  const cookieToken = req.cookies?.[COOKIE_NAME];
+  if (cookieToken) {
+    const payload = extractPayload(cookieToken);
+    if (payload && payload.userId) {
+      req.userId = payload.userId;
       req.user = payload;
+      return next();
     }
   }
 

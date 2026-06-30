@@ -37,6 +37,14 @@ function setAuthCookie(res, token) {
   });
 }
 
+function extractToken(req) {
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    return authHeader.slice(7);
+  }
+  return req.cookies?.[COOKIE_NAME] || null;
+}
+
 // GET /api/auth/google — start OAuth flow
 router.get('/google', (req, res) => {
   if (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET || !GOOGLE_REDIRECT_URI) {
@@ -46,18 +54,8 @@ router.get('/google', (req, res) => {
   const state = crypto.randomBytes(16).toString('hex');
   const redirectTo = req.query.redirect_to || '/studio';
 
-  res.cookie('oauth_state', state, {
-    httpOnly: true,
-    maxAge: 10 * 60 * 1000,
-    sameSite: 'lax',
-    path: '/',
-  });
-  res.cookie('oauth_redirect', redirectTo, {
-    httpOnly: true,
-    maxAge: 10 * 60 * 1000,
-    sameSite: 'lax',
-    path: '/',
-  });
+  res.cookie('oauth_state', state, { httpOnly: true, maxAge: 10 * 60 * 1000, sameSite: 'lax', path: '/' });
+  res.cookie('oauth_redirect', redirectTo, { httpOnly: true, maxAge: 10 * 60 * 1000, sameSite: 'lax', path: '/' });
 
   const params = new URLSearchParams({
     client_id: GOOGLE_CLIENT_ID,
@@ -76,14 +74,10 @@ router.get('/google', (req, res) => {
 router.get('/google/callback', async (req, res) => {
   const { code, state, error } = req.query;
 
-  if (error) {
-    return res.redirect('/sign-in?error=access_denied');
-  }
+  if (error) return res.redirect('/sign-in?error=access_denied');
 
   const storedState = req.cookies?.oauth_state;
-  if (!state || state !== storedState) {
-    return res.redirect('/sign-in?error=state_mismatch');
-  }
+  if (!state || state !== storedState) return res.redirect('/sign-in?error=state_mismatch');
 
   const redirectTo = req.cookies?.oauth_redirect || '/studio';
 
@@ -135,9 +129,9 @@ router.get('/google/callback', async (req, res) => {
   }
 });
 
-// GET /api/auth/me — returns current user + stats
+// GET /api/auth/me — returns current user + stats + token for frontend Authorization header
 router.get('/me', async (req, res) => {
-  const token = req.cookies?.[COOKIE_NAME];
+  const token = extractToken(req);
   if (!token) return res.json({ user: null });
 
   let payload;
@@ -156,7 +150,7 @@ router.get('/me', async (req, res) => {
          COUNT(*) FILTER (WHERE status IN ('queued','processing')) AS pending
        FROM generation_jobs
        WHERE user_id = $1`,
-      [String(payload.userId)]
+      [payload.userId]
     );
 
     res.json({
@@ -168,6 +162,7 @@ router.get('/me', async (req, res) => {
         picture: payload.picture,
       },
       stats: rows[0] || { total_images: 0, total_videos: 0, pending: 0 },
+      token,
     });
   } catch (err) {
     console.error('[Auth Me]', err.message);

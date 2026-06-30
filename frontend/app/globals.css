@@ -31,29 +31,30 @@
   * {
     @apply border-border;
   }
+  html {
+    scroll-behavior: smooth;
+  }
   body {
     @apply bg-background text-foreground;
     font-feature-settings: "rlig" 1, "calt" 1;
   }
-  ::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
-  }
-  ::-webkit-scrollbar-track {
-    background: hsl(var(--background));
-  }
-  ::-webkit-scrollbar-thumb {
-    background: hsl(var(--border));
-    border-radius: 3px;
-  }
-  ::-webkit-scrollbar-thumb:hover {
-    background: hsl(var(--muted-foreground));
-  }
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: hsl(var(--background)); }
+  ::-webkit-scrollbar-thumb { background: hsl(var(--border)); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: hsl(var(--muted-foreground)); }
 }
 
 @layer utilities {
   .gradient-text {
-    @apply bg-gradient-to-r from-violet-400 via-purple-400 to-indigo-400 bg-clip-text text-transparent;
+    @apply bg-gradient-to-r from-violet-400 via-purple-300 to-indigo-400 bg-clip-text text-transparent;
+  }
+  .gradient-text-animated {
+    background: linear-gradient(120deg, #a78bfa, #c4b5fd, #818cf8, #a78bfa);
+    background-size: 250% auto;
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    animation: shimmer-text 4s linear infinite;
   }
   .gradient-border {
     background: linear-gradient(hsl(var(--card)), hsl(var(--card))) padding-box,
@@ -63,10 +64,87 @@
   .glass {
     @apply bg-white/5 backdrop-blur-md border border-white/10;
   }
+  .glass-hover {
+    @apply bg-white/5 backdrop-blur-md border border-white/10 hover:bg-white/[0.08] hover:border-white/20 transition-all duration-300;
+  }
   .glow {
     box-shadow: 0 0 40px 10px hsl(263 90% 65% / 0.15);
   }
   .glow-sm {
     box-shadow: 0 0 20px 5px hsl(263 90% 65% / 0.1);
   }
+  .glow-hover:hover {
+    box-shadow: 0 0 30px 8px hsl(263 90% 65% / 0.2);
+  }
+  .card-lift {
+    transition: transform 0.25s ease, box-shadow 0.25s ease;
+  }
+  .card-lift:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 20px 40px rgba(0,0,0,0.3), 0 0 20px hsl(263 90% 65% / 0.1);
+  }
+  .dots-bg {
+    background-image: radial-gradient(circle, hsl(216 34% 17%) 1px, transparent 1px);
+    background-size: 28px 28px;
+  }
+  /* fade-up utility classes for stagger */
+  .fade-up { animation: fade-up 0.7s ease both; }
+  .fade-up-d1 { animation: fade-up 0.7s ease 0.1s both; }
+  .fade-up-d2 { animation: fade-up 0.7s ease 0.2s both; }
+  .fade-up-d3 { animation: fade-up 0.7s ease 0.3s both; }
+  .fade-up-d4 { animation: fade-up 0.7s ease 0.4s both; }
+  .fade-up-d5 { animation: fade-up 0.7s ease 0.5s both; }
+  .fade-up-d6 { animation: fade-up 0.7s ease 0.6s both; }
+  .fade-up-d7 { animation: fade-up 0.7s ease 0.7s both; }
+  .fade-in-d1 { animation: fade-in 1s ease 0.2s both; }
+  .fade-in-d2 { animation: fade-in 1s ease 0.5s both; }
+  .float-slow { animation: float 7s ease-in-out infinite; }
+  .float-slow-alt { animation: float 9s ease-in-out 1.5s infinite; }
+  .pulse-ring { animation: pulse-ring 2.5s ease-out infinite; }
 }
+
+/* ─── Keyframes ─────────────────────────────────────── */
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(28px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px) scale(1); }
+  50%       { transform: translateY(-24px) scale(1.04); }
+}
+
+@keyframes shimmer-text {
+  0%   { background-position: 0% center; }
+  100% { background-position: 250% center; }
+}
+
+@keyframes pulse-ring {
+  0%   { transform: scale(1);   opacity: 0.6; }
+  100% { transform: scale(1.8); opacity: 0; }
+}
+
+@keyframes spin-slow {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+@keyframes slide-in-from-bottom-4 {
+  from { transform: translateY(16px); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+
+/* ─── Animation helpers ─────────────────────────────── */
+.animate-in {
+  animation-fill-mode: both;
+}
+.slide-in-from-bottom-4 {
+  animation-name: slide-in-from-bottom-4;
+}
+.duration-300 { animation-duration: 300ms; }
+

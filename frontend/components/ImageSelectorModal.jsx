@@ -53,14 +53,10 @@ export default function ImageSelectorModal({ open, onClose, onSelect }) {
     }
   }
 
-  function handleSelect() {
+  function handleSelectConfirm() {
     if (!selected) return;
     onSelect(selected);
     onClose();
-  }
-
-  function handleClear() {
-    setSelected(null);
   }
 
   const images = tab === 'uploaded'
@@ -69,12 +65,12 @@ export default function ImageSelectorModal({ open, onClose, onSelect }) {
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="p-0">
-        <DialogHeader className="p-6 pb-4">
+      <DialogContent className="p-0 max-w-lg">
+        <DialogHeader className="p-5 pb-3">
           <DialogTitle>Select Image</DialogTitle>
         </DialogHeader>
 
-        <div className="px-6">
+        <div className="px-5">
           <Tabs value={tab} onValueChange={setTab}>
             <TabsList className="w-full">
               <TabsTrigger value="uploaded" className="flex-1">Uploaded</TabsTrigger>
@@ -82,32 +78,22 @@ export default function ImageSelectorModal({ open, onClose, onSelect }) {
             </TabsList>
 
             <TabsContent value={tab} className="mt-4">
-              {/* Upload button (uploaded tab only) */}
               {tab === 'uploaded' && (
                 <div className="mb-4">
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={handleFileChange}
-                  />
+                  <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
                   <button
                     onClick={() => fileInputRef.current?.click()}
                     disabled={uploading}
                     className="w-full h-20 rounded-xl border-2 border-dashed border-border hover:border-primary/50 transition-colors flex flex-col items-center justify-center gap-2 text-muted-foreground hover:text-foreground disabled:opacity-50"
                   >
-                    {uploading ? (
-                      <><Loader2 className="w-5 h-5 animate-spin" /><span className="text-sm">Uploading…</span></>
-                    ) : (
-                      <><Upload className="w-5 h-5" /><span className="text-sm">Upload Image</span></>
-                    )}
+                    {uploading
+                      ? <><Loader2 className="w-5 h-5 animate-spin" /><span className="text-sm">Uploading…</span></>
+                      : <><Upload className="w-5 h-5" /><span className="text-sm">Upload Image</span></>}
                   </button>
                   {uploadError && <p className="text-destructive text-xs mt-1">{uploadError}</p>}
                 </div>
               )}
 
-              {/* Image Grid */}
               {loading ? (
                 <div className="flex items-center justify-center h-40">
                   <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
@@ -115,9 +101,7 @@ export default function ImageSelectorModal({ open, onClose, onSelect }) {
               ) : images.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-40 text-muted-foreground gap-2">
                   <ImageIcon className="w-8 h-8" />
-                  <p className="text-sm">
-                    {tab === 'uploaded' ? 'No uploaded images yet' : 'No generated images yet'}
-                  </p>
+                  <p className="text-sm">{tab === 'uploaded' ? 'No uploaded images yet' : 'No generated images yet'}</p>
                 </div>
               ) : (
                 <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 max-h-64 overflow-y-auto pr-1">
@@ -145,21 +129,20 @@ export default function ImageSelectorModal({ open, onClose, onSelect }) {
           </Tabs>
         </div>
 
-        {/* Footer */}
         <div className="p-6 pt-4 flex items-center justify-between gap-3 border-t border-border mt-4">
           <div className="flex-1">
             {selected && (
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Check className="w-4 h-4 text-primary" />
-                <span className="truncate max-w-[200px]">Image selected</span>
-                <button onClick={handleClear} className="text-muted-foreground hover:text-foreground">
+                <span className="truncate max-w-[160px]">Image selected</span>
+                <button onClick={() => setSelected(null)} className="text-muted-foreground hover:text-foreground">
                   <X className="w-3.5 h-3.5" />
                 </button>
               </div>
             )}
           </div>
-          <Button variant="outline" onClick={onClose}>Cancel</Button>
-          <Button onClick={handleSelect} disabled={!selected}>Use Image</Button>
+          <Button variant="outline" size="sm" onClick={onClose}>Cancel</Button>
+          <Button size="sm" onClick={handleSelectConfirm} disabled={!selected}>Use Image</Button>
         </div>
       </DialogContent>
     </Dialog>
