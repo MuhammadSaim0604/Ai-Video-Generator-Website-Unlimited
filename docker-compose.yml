@@ -31,6 +31,10 @@ services:
       DATABASE_URL: postgresql://veo3:${DB_PASSWORD}@postgres:5432/veo3
       ADMIN_SECRET: ${ADMIN_SECRET}
       SESSION_SECRET: ${SESSION_SECRET}
+      JWT_ADMIN_SECRET: ${JWT_ADMIN_SECRET}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
+      GOOGLE_REDIRECT_URI: https://veo3free.fun/api/auth/google/callback
       BACKEND_PORT: 3001
       NODE_ENV: production
     expose:
@@ -48,6 +52,8 @@ services:
       - backend
     environment:
       BACKEND_INTERNAL_URL: http://backend:3001
+      NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL: /studio
+      NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL: /studio
       NODE_ENV: production
     expose:
       - "5000"

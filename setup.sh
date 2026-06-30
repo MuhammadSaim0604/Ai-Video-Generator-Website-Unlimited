@@ -33,6 +33,15 @@ read -rp "$(echo -e "${YELLOW}Email${NC} for SSL certificate (Let's Encrypt): ")
 
 read -rp "$(echo -e "${YELLOW}Git repo URL${NC} (leave blank to use current directory): ")" REPO_URL
 
+read -rp "$(echo -e "${YELLOW}JWT admin secret${NC} (hit enter to auto-generate): ")" JWT_ADMIN_SECRET; echo
+[[ -z "$JWT_ADMIN_SECRET" ]] && JWT_ADMIN_SECRET=$(openssl rand -base64 32 | tr -d '/+=') && info "Generated JWT admin secret"
+
+read -rp "$(echo -e "${YELLOW}Google OAuth client ID${NC} (hit enter to skip): ")" GOOGLE_CLIENT_ID
+[[ -z "$GOOGLE_CLIENT_ID" ]] && error "Google Client ID is required"
+
+read -rp "$(echo -e "${YELLOW}Google OAuth client secret${NC} (hit enter to skip): ")" GOOGLE_CLIENT_SECRET
+[[ -z "$GOOGLE_CLIENT_SECRET" ]] && error "Google Client Secret is required"
+
 read -rsp "$(echo -e "${YELLOW}DB password${NC} (hit enter to auto-generate): ")" DB_PASSWORD; echo
 [[ -z "$DB_PASSWORD" ]] && DB_PASSWORD=$(openssl rand -base64 32 | tr -d '/+=') && info "Generated DB password"
 
@@ -102,6 +111,9 @@ DB_PASSWORD=${DB_PASSWORD}
 ADMIN_SECRET=${ADMIN_SECRET}
 SESSION_SECRET=${SESSION_SECRET}
 DOMAIN=${DOMAIN}
+JWT_ADMIN_SECRET=${JWT_ADMIN_SECRET}
+GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
 EOF
 chmod 600 "$APP_DIR/.env"
 success ".env written"
