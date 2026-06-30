@@ -154,34 +154,47 @@ docker run -d --name veo3_init_nginx \
   nginx:1.27-alpine
 
 # ── Get SSL certificate ───────────────────────────────────────
-info "Requesting SSL certificate from Let's Encrypt for $DOMAIN..."
-sleep 2
-docker run --rm \
-  -v "$APP_DIR/certbot/conf:/etc/letsencrypt" \
-  -v "$APP_DIR/certbot/www:/var/www/certbot" \
-  certbot/certbot certonly \
-    --webroot \
-    --webroot-path=/var/www/certbot \
-    --email "$SSL_EMAIL" \
-    --agree-tos \
-    --no-eff-email \
-    -d "$DOMAIN" \
-    -d "www.$DOMAIN" 2>&1 || {
-      warn "www.$DOMAIN failed, trying just $DOMAIN..."
-      docker run --rm \
-        -v "$APP_DIR/certbot/conf:/etc/letsencrypt" \
-        -v "$APP_DIR/certbot/www:/var/www/certbot" \
-        certbot/certbot certonly \
-          --webroot \
-          --webroot-path=/var/www/certbot \
-          --email "$SSL_EMAIL" \
-          --agree-tos \
-          --no-eff-email \
-          -d "$DOMAIN"
+if compgen -G "$APP_DIR/certbot/conf/live*/$DOMAIN*/fullchain.pem" > /dev/null || \
+   [ -f "$APP_DIR/certbot/conf/live/$DOMAIN/fullchain.pem" ]; then
+    success "SSL certificate already exists. Skipping certificate request."
+
+    docker stop veo3_init_nginx >/dev/null 2>&1 || true
+    docker rm veo3_init_nginx >/dev/null 2>&1 || true
+else
+    info "Requesting SSL certificate from Let's Encrypt for $DOMAIN..."
+    sleep 2
+
+    docker run --rm \
+      -v "$APP_DIR/certbot/conf:/etc/letsencrypt" \
+      -v "$APP_DIR/certbot/www:/var/www/certbot" \
+      certbot/certbot certonly \
+        --webroot \
+        --webroot-path=/var/www/certbot \
+        --email "$SSL_EMAIL" \
+        --agree-tos \
+        --no-eff-email \
+        -d "$DOMAIN" \
+        -d "www.$DOMAIN" || {
+
+        warn "www.$DOMAIN failed, trying just $DOMAIN..."
+
+        docker run --rm \
+          -v "$APP_DIR/certbot/conf:/etc/letsencrypt" \
+          -v "$APP_DIR/certbot/www:/var/www/certbot" \
+          certbot/certbot certonly \
+            --webroot \
+            --webroot-path=/var/www/certbot \
+            --email "$SSL_EMAIL" \
+            --agree-tos \
+            --no-eff-email \
+            -d "$DOMAIN"
     }
 
-docker stop veo3_init_nginx && docker rm veo3_init_nginx
-success "SSL certificate obtained"
+    docker stop veo3_init_nginx >/dev/null 2>&1 || true
+    docker rm veo3_init_nginx >/dev/null 2>&1 || true
+
+    success "SSL certificate obtained"
+fi
 
 # ── Start the full stack ──────────────────────────────────────
 info "Building and starting all containers..."
